@@ -2,11 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Mobile Fix */
+/* ===== Safe Mobile Fix ===== */
 html, body {
   overflow-x: hidden;
 }
 
-* {
+#root {
+  overflow-x: hidden;
+}
+
+img {
   max-width: 100%;
+  height: auto;
 }
