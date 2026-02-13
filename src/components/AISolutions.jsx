@@ -1,126 +1,212 @@
 "use client";
 
-import { Canvas, useFrame } from "@react-three/fiber";
-import {
-  Float,
-  Environment,
-  Stars,
-} from "@react-three/drei";
-import {
-  EffectComposer,
-  Bloom,
-  DepthOfField,
-} from "@react-three/postprocessing";
-import { useRef } from "react";
+import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { Float } from "@react-three/drei";
+import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
+import { useRef, useState, useEffect } from "react";
 import * as THREE from "three";
 
-function Platforms() {
-  const group = useRef();
+/* ===============================
+   PRODUCT MESH
+================================ */
+function Product({
+  data,
+  setHovered,
+  setActive,
+  active,
+}) {
+  const mesh = useRef();
+  const texture = useLoader(THREE.TextureLoader, data.image);
 
   useFrame((state) => {
-    group.current.rotation.y = state.mouse.x * 0.25;
-    group.current.rotation.x = state.mouse.y * 0.12;
+    if (!mesh.current) return;
+
+    const isActive = active?.id === data.id;
+
+    // Subtle mouse rotation
+    mesh.current.rotation.y = state.mouse.x * 0.15;
+
+    const targetScale = isActive ? 1.18 : 1;
+    mesh.current.scale.lerp(
+      new THREE.Vector3(targetScale, targetScale, targetScale),
+      0.08
+    );
+
+    mesh.current.material.opacity =
+      active && !isActive ? 0.35 : 1;
   });
 
   return (
-    <group ref={group}>
-      <Float speed={2} floatIntensity={0.6}>
-        <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[3.5, 1.8, 0.25]} />
-          <meshPhysicalMaterial
-            color="#00AEEF"
-            metalness={0.8}
-            roughness={0.1}
-            transmission={0.9}
-            thickness={1}
-            clearcoat={1}
-            clearcoatRoughness={0}
-          />
-        </mesh>
-      </Float>
-
-      <Float speed={2} floatIntensity={0.6}>
-        <mesh position={[4, -1, -6]}>
-          <boxGeometry args={[3.5, 1.8, 0.25]} />
-          <meshPhysicalMaterial
-            color="#A855F7"
-            metalness={0.8}
-            roughness={0.1}
-            transmission={0.9}
-            thickness={1}
-            clearcoat={1}
-          />
-        </mesh>
-      </Float>
-
-      <Float speed={2} floatIntensity={0.6}>
-        <mesh position={[-4, 1, -12]}>
-          <boxGeometry args={[3.5, 1.8, 0.25]} />
-          <meshPhysicalMaterial
-            color="#10B981"
-            metalness={0.8}
-            roughness={0.1}
-            transmission={0.9}
-            thickness={1}
-            clearcoat={1}
-          />
-        </mesh>
-      </Float>
-    </group>
+    <Float speed={2} floatIntensity={0.4}>
+      <mesh
+        ref={mesh}
+        position={data.position}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          if (!active)
+            setHovered({ id: data.id, mesh });
+        }}
+        onPointerOut={(e) => {
+          e.stopPropagation();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setActive(data);
+          setHovered({ id: data.id, mesh });
+        }}
+      >
+        <planeGeometry args={[5, 2.5]} />
+        <meshBasicMaterial
+          map={texture}
+          transparent
+        />
+      </mesh>
+    </Float>
   );
 }
 
-export default function AISolutionsCinematic() {
+/* ===============================
+   3D TO SCREEN POSITION
+================================ */
+function PopupTracker({ hovered, setScreenPos }) {
+  const { camera, size } = useThree();
+
+  useFrame(() => {
+    if (!hovered?.mesh?.current) return;
+
+    const vector = new THREE.Vector3();
+    vector.setFromMatrixPosition(
+      hovered.mesh.current.matrixWorld
+    );
+    vector.project(camera);
+
+    const x = (vector.x * 0.5 + 0.5) * size.width;
+    const y = (-vector.y * 0.5 + 0.5) * size.height;
+
+    setScreenPos({ x, y });
+  });
+
+  return null;
+}
+
+/* ===============================
+   MAIN PRODUCT STAGE
+================================ */
+export default function UltraProductStage() {
+  const [hovered, setHovered] = useState(null);
+  const [active, setActive] = useState(null);
+  const [screenPos, setScreenPos] = useState({
+    x: 0,
+    y: 0,
+  });
+
+  const products = [
+    {
+      id: "validate",
+      image: "/validaite.png",
+      position: [0, 0, 0],
+      title: "ValidAIte",
+      desc: "Enterprise-grade validation for Generative AI governance and compliance.",
+    },
+    {
+      id: "nexa",
+      image: "/nexa.png",
+      position: [6, 0, -2],
+      title: "NexaAI",
+      desc: "AI systems boards approve and CIOs scale.",
+    },
+    {
+      id: "qmentis",
+      image: "/qmentis.webp",
+      position: [-6, 0, -2],
+      title: "QMentisAI",
+      desc: "GenAI-driven intelligent quality engineering.",
+    },
+  ];
+
+  const currentProduct =
+    active ||
+    (hovered &&
+      products.find((p) => p.id === hovered.id));
+
+  /* Click outside close */
+  useEffect(() => {
+    const handleClick = () => {
+      setActive(null);
+      setHovered(null);
+    };
+
+    window.addEventListener("pointerdown", handleClick);
+    return () =>
+      window.removeEventListener(
+        "pointerdown",
+        handleClick
+      );
+  }, []);
+
   return (
-    <div className="h-screen w-full bg-black relative">
+    <div className="relative h-screen z-10">
       <Canvas
-        camera={{ position: [0, 0, 8], fov: 45 }}
+        camera={{ position: [0, 0, 12], fov: 35 }}
       >
-        {/* Atmosphere */}
-        <color attach="background" args={["#020617"]} />
-        <fog attach="fog" args={["#020617", 8, 25]} />
-
-        <ambientLight intensity={0.4} />
+        <ambientLight intensity={0.7} />
         <directionalLight
-          position={[5, 5, 5]}
-          intensity={2}
+          position={[0, 5, 5]}
+          intensity={1.5}
         />
 
-        <Environment preset="city" />
-
-        <Stars
-          radius={100}
-          depth={50}
-          count={3000}
-          factor={4}
-          fade
-        />
-
-        <Platforms />
-
-        {/* CINEMATIC EFFECTS */}
-        <EffectComposer>
-          <Bloom
-            intensity={1.2}
-            luminanceThreshold={0.2}
-            luminanceSmoothing={0.9}
+        {products.map((product) => (
+          <Product
+            key={product.id}
+            data={product}
+            setHovered={setHovered}
+            setActive={setActive}
+            active={active}
           />
-          <DepthOfField
-            focusDistance={0.02}
-            focalLength={0.03}
-            bokehScale={4}
+        ))}
+
+        <PopupTracker
+          hovered={hovered}
+          setScreenPos={setScreenPos}
+        />
+
+        <EffectComposer>
+          <Bloom intensity={0.6} luminanceThreshold={0.2} />
+          <Vignette
+            eskil={false}
+            offset={0.2}
+            darkness={0.9}
           />
         </EffectComposer>
       </Canvas>
 
-      <div className="absolute top-24 w-full text-center text-white">
-        <h1 className="text-6xl font-semibold tracking-tight">
-          Immersive AI Platforms
-        </h1>
-        <p className="text-gray-400 mt-6 text-lg">
-          Explore the next dimension of AI
-        </p>
-      </div>
+      {/* ===============================
+         POPUP UI (NO BLINK)
+      =============================== */}
+      {currentProduct && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            left: screenPos.x,
+            top: screenPos.y - 140,
+            transform: "translate(-50%, -50%)",
+          }}
+          className="bg-white/5 backdrop-blur-xl border border-white/20 p-6 rounded-2xl text-white w-72 transition-all duration-300 shadow-2xl"
+        >
+          <h3 className="text-xl font-semibold mb-3">
+            {currentProduct.title}
+          </h3>
+
+          <p className="text-gray-300 text-sm mb-5">
+            {currentProduct.desc}
+          </p>
+
+          <button className="w-full py-2 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-lg text-sm font-medium hover:scale-105 transition-all duration-300">
+            Learn More
+          </button>
+        </div>
+      )}
     </div>
   );
 }
